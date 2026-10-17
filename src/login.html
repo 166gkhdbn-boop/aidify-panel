@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>REN — Sign In</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0c0c0f;--panel:#13131a;--border:#1e1e2e;--border-hi:#2a2a3e;--text:#e2e2f0;--muted:#6b6b8a;--dim:#3a3a52;--accent:#6366f1;--accent-glow:rgba(99,102,241,0.18);--accent-dim:rgba(99,102,241,0.08);--red:#f43f5e;--red-dim:rgba(244,63,94,0.08);--green:#10b981}
+html,body{height:100%;background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--text)}
+body{display:flex;align-items:center;justify-content:center;min-height:100vh;position:relative;overflow:hidden}
+.bg-grid{position:fixed;inset:0;background-image:linear-gradient(rgba(99,102,241,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none}
+.bg-glow{position:fixed;width:600px;height:600px;background:radial-gradient(circle,rgba(99,102,241,0.06) 0%,transparent 70%);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none}
+.wrap{position:relative;z-index:1;width:100%;max-width:380px;padding:20px}
+.logo{text-align:center;margin-bottom:32px}
+.logo-mark{width:48px;height:48px;background:var(--accent);border-radius:14px;display:inline-flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff;letter-spacing:-1px;margin-bottom:14px;box-shadow:0 0 40px var(--accent-glow)}
+.logo h1{font-size:22px;font-weight:700;letter-spacing:-0.5px}
+.logo p{font-size:13px;color:var(--muted);margin-top:4px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,0.4)}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.field input{width:100%;padding:10px 14px;background:#0a0a10;border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none;transition:border-color .2s,box-shadow .2s}
+.field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+.field input::placeholder{color:var(--dim)}
+.remember{display:flex;align-items:center;gap:8px;margin-bottom:20px;cursor:pointer;font-size:13px;color:var(--muted)}
+.remember input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+.btn{width:100%;padding:11px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
+.btn:hover{filter:brightness(1.1);box-shadow:0 4px 20px var(--accent-glow)}
+.btn:active{transform:scale(0.99)}
+.btn.loading{pointer-events:none;opacity:.7}
+.err{background:var(--red-dim);border:1px solid rgba(244,63,94,0.2);color:var(--red);border-radius:9px;padding:10px 14px;font-size:13px;margin-bottom:14px;display:none;align-items:center;gap:8px}
+.err.show{display:flex}
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:none}
+.btn.loading .spinner{display:inline-block}
+.btn.loading .btn-text{opacity:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+<div class="wrap">
+  <div class="logo">
+    <div class="logo-mark">R</div>
+    <h1>REN Gateway</h1>
+    <p>Secure access panel</p>
+  </div>
+  <div class="card">
+    <div class="err" id="err">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="err-msg">Invalid password</span>
+    </div>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="username" value="admin" placeholder="admin" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <label class="remember">
+      <input type="checkbox" id="remember" checked>
+      Keep me signed in
+    </label>
+    <button class="btn" id="btn" onclick="doLogin()">
+      <span class="spinner"></span>
+      <span class="btn-text">Sign In</span>
+    </button>
+  </div>
+</div>
+<script>
+if(localStorage.getItem('ren_token')){window.location.href='/dashboard';}
+document.getElementById('password').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+async function doLogin(){
+  const pw=document.getElementById('password').value;
+  const btn=document.getElementById('btn');
+  const err=document.getElementById('err');
+  if(!pw){showErr('Password is required');return;}
+  btn.classList.add('loading');
+  err.classList.remove('show');
+  try{
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+    if(r.ok){const d=await r.json();localStorage.setItem('ren_token',d.token||'');window.location.href='/dashboard';}
+    else{const d=await r.json();showErr(d.detail||'Invalid password');}
+  }catch(e){showErr('Connection error');}
+  btn.classList.remove('loading');
+}
+function showErr(msg){
+  document.getElementById('err-msg').textContent=msg;
+  document.getElementById('err').classList.add('show');
+}
+</script>
+</body>
+</html>

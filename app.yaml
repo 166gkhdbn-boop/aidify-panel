@@ -1,0 +1,8 @@
+kind: wasmer.io/App.v0
+owner: 166gkhdbn-boop
+name: aidify-panel
+package: .
+env:
+  SUPABASE_URL: "https://rdcnkkhqangukrgfehdj.supabase.co"
+  PROXY_HOST: "vless-test.wasmer.app"
+app_id: da_KE4I8tXUNpd8
