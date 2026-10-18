@@ -12,6 +12,7 @@ const ENV_PROXY_HOST = process.env.PROXY_HOST || "";
 const LOGIN_HTML = __LOGIN_HTML__;
 const DASHBOARD_HTML = __DASHBOARD_HTML__;
 const SETUP_HTML = __SETUP_HTML__;
+const DEPLOY_HTML = __DEPLOY_HTML__;
 
 const json = (obj, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json" } });
@@ -173,7 +174,107 @@ async function handler(req) {
     if (await isSetupDone()) return redir("/login");
     return html(SETUP_HTML);
   }
+  if (path === "/deploy") return html(DEPLOY_HTML);
   if (path === "/dashboard") return html(DASHBOARD_HTML);
+
+  // ---- self-service deploy wizard (public) ----
+  // The user's Wasmer token is used transiently for their deployment only.
+  const WASMER_GQL = process.env.WASMER_GRAPHQL_URL || "https://registry.wasmer.io/graphql";
+  async function wasmerGQL(token, query, variables, operationName) {
+    const r = await fetch(WASMER_GQL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
+      body: JSON.stringify({ query, variables: variables || null, operationName }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (j.errors && j.errors.length) throw new Error(j.errors[0].message);
+    if (!j.data) throw new Error("Wasmer API error");
+    return j.data;
+  }
+
+  if (path === "/api/deploy/validate-token" && m === "POST") {
+    let body = {};
+    try { body = await req.json(); } catch {}
+    const token = String(body.wasmer_token || "").trim();
+    if (!token) return err("Token is required");
+    try {
+      const d = await wasmerGQL(token, "query GetCurrentUser {\n  viewer {\n    id\n    username\n  }\n}\n", null, "GetCurrentUser");
+      if (!d.viewer || !d.viewer.username) return err("Invalid Wasmer token", 401);
+      return json({ ok: true, username: d.viewer.username });
+    } catch (e) {
+      return err("Invalid Wasmer token", 401);
+    }
+  }
+
+  if (path === "/api/deploy/verify-db" && m === "POST") {
+    let body = {};
+    try { body = await req.json(); } catch {}
+    const url = String(body.supabase_url || "").trim().replace(/\/$/, "");
+    const key = String(body.supabase_key || "").trim();
+    if (!url || !key) return err("Supabase URL and key are required");
+    try {
+      const h = { apikey: key, Authorization: "Bearer " + key };
+      const [u, s] = await Promise.all([
+        fetch(url + "/rest/v1/panel_users?select=id&limit=1", { headers: h }).then((r) => r.status),
+        fetch(url + "/rest/v1/panel_settings?select=key&limit=1", { headers: h }).then((r) => r.status),
+      ]);
+      if (u === 401 || s === 401) return err("Supabase key is invalid (401)", 401);
+      return json({ ok: true, users: u === 200, settings: s === 200 });
+    } catch (e) {
+      return err("Could not reach Supabase — check the URL");
+    }
+  }
+
+  if (path === "/api/deploy" && m === "POST") {
+    let body = {};
+    try { body = await req.json(); } catch {}
+    const token = String(body.wasmer_token || "").trim();
+    const appName = String(body.app_name || "").trim().toLowerCase();
+    const sbUrl = String(body.supabase_url || "").trim().replace(/\/$/, "");
+    const sbKey = String(body.supabase_key || "").trim();
+    const pw = String(body.panel_password || "");
+    const proxyHost = String(body.proxy_host || "").trim().toLowerCase();
+    if (!token) return err("Wasmer token is required");
+    if (!/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(appName)) return err("Invalid app name");
+    if (!/^https:\/\//.test(sbUrl) || !sbKey) return err("Invalid Supabase credentials");
+    if (pw.length < 4) return err("Panel password must be at least 4 characters");
+    try {
+      // 1. who owns this token?
+      const me = await wasmerGQL(token, "query GetCurrentUser {\n  viewer {\n    id\n    username\n  }\n}\n", null, "GetCurrentUser");
+      const username = me.viewer && me.viewer.username;
+      if (!username) return err("Invalid Wasmer token", 401);
+      // 2. create + deploy the app (package already published)
+      const cfgLines = [
+        "kind: wasmer.io/App.v0",
+        "name: " + appName,
+        "owner: " + username,
+        "package: 166gkhdbn-boop/aidify-panel",
+        "env:",
+        "  SUPABASE_URL: " + sbUrl,
+      ];
+      if (proxyHost) cfgLines.push("  PROXY_HOST: " + proxyHost);
+      const cfg = cfgLines.join("\n") + "\n";
+      const depQ = "mutation PublishDeployApp($config: String!, $name: ID!, $owner: ID, $makeDefault: Boolean) {\n  publishDeployApp(input: {config: {yamlConfig: $config}, name: $name, owner: $owner, makeDefault: $makeDefault}) {\n    deployAppVersion {\n      id\n      url\n      app { id }\n    }\n  }\n}\n";
+      const depVars = { config: cfg, name: appName, owner: username, makeDefault: true };
+      const d1 = await wasmerGQL(token, depQ, depVars, "PublishDeployApp");
+      const appId = d1.publishDeployApp.deployAppVersion.app.id;
+      // 3. secrets
+      const secQ = "mutation UpsertAppSecrets($appId: ID!, $secrets: [SecretInput!]) {\n  upsertAppSecrets(input: {appId: $appId, secrets: $secrets}) {\n    success\n  }\n}\n";
+      await wasmerGQL(token, secQ, {
+        appId,
+        secrets: [
+          { name: "SUPABASE_SERVICE_ROLE_KEY", value: sbKey },
+          { name: "PANEL_PASSWORD", value: pw },
+        ],
+      }, "UpsertAppSecrets");
+      // 4. redeploy so secrets take effect
+      const d2 = await wasmerGQL(token, depQ, depVars, "PublishDeployApp");
+      const url = (d2.publishDeployApp.deployAppVersion.url || ("https://" + appName + ".wasmer.app")).replace(/\/$/, "");
+      return json({ ok: true, url, username });
+    } catch (e) {
+      return err("Deploy failed: " + (e.message || e).slice(0, 200));
+    }
+  }
 
   // first-run setup (public until setup is done)
   if (path === "/api/setup-info" && m === "GET") {

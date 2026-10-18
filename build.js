@@ -8,11 +8,13 @@ const esc = (s) => s.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$/g, 
 const login = esc(fs.readFileSync(path.join(root, "src/login.html"), "utf8"));
 const dash = esc(fs.readFileSync(path.join(root, "src/dashboard.html"), "utf8"));
 const setup = esc(fs.readFileSync(path.join(root, "src/setup.html"), "utf8"));
+const deploy = esc(fs.readFileSync(path.join(root, "src/deploy.html"), "utf8"));
 let backend = fs.readFileSync(path.join(root, "src/backend.js"), "utf8");
 
 backend = backend.replace("__LOGIN_HTML__", "`" + login + "`");
 backend = backend.replace("__DASHBOARD_HTML__", "`" + dash + "`");
 backend = backend.replace("__SETUP_HTML__", "`" + setup + "`");
+backend = backend.replace("__DEPLOY_HTML__", "`" + deploy + "`");
 
 fs.mkdirSync(path.join(root, "app"), { recursive: true });
 fs.writeFileSync(path.join(root, "app/app.js"), backend);
