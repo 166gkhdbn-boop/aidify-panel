@@ -90,10 +90,10 @@ body{display:flex;align-items:center;justify-content:center;min-height:100vh;pos
       <div class="field"><label>Wasmer personal token</label><input type="password" id="d-token" class="mono" placeholder="wam_…" dir="ltr" autocomplete="off"></div>
     </div>
 
-    <!-- STEP 2: supabase token -->
+    <!-- STEP 2: database token -->
     <div class="step" data-step="1">
-      <h2>Supabase token</h2>
-      <p class="desc">The panel needs a database to remember your users and settings. We'll create a <b>free Supabase project for you automatically</b> — just give us a token:
+      <h2>Database token</h2>
+      <p class="desc">The panel needs a database to remember your users and settings. We'll create a <b>free database for you automatically</b> — just give us a token:
         <ol>
           <li>Sign in at <a href="https://supabase.com" target="_blank" rel="noopener">supabase.com</a></li>
           <li>Go to <a href="https://supabase.com/dashboard/account/tokens" target="_blank" rel="noopener">Account → Access Tokens</a></li>
@@ -101,7 +101,7 @@ body{display:flex;align-items:center;justify-content:center;min-height:100vh;pos
         </ol>
       </p>
       <div class="secure"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>Used once to create your database. Never stored.</span></div>
-      <div class="field"><label>Supabase access token</label><input type="password" id="d-sbtoken" class="mono" placeholder="sbp_…" dir="ltr" autocomplete="off"></div>
+      <div class="field"><label>Database access token</label><input type="password" id="d-sbtoken" class="mono" placeholder="sbp_…" dir="ltr" autocomplete="off"></div>
     </div>
 
     <!-- STEP 3: panel settings -->
@@ -186,12 +186,12 @@ async function validateWasmer(){
 }
 async function validateSb(){
   const t = document.getElementById('d-sbtoken').value.trim();
-  if(!t){showErr('Paste your Supabase token first.');return false;}
+  if(!t){showErr('Paste your database token first.');return false;}
   const btn=document.getElementById('btn-next');btn.disabled=true;hideErr();
   try{
     const d = await api('/api/deploy/validate-sb-token',{supabase_token:t});
     D.sbToken=t; D.orgSlug=d.orgs[0].slug; D.orgName=d.orgs[0].name;
-    showOk('Supabase connected'+(d.orgs.length>1?' — using organization "'+d.orgs[0].name+'"':'')+'. We\'ll create your database automatically.');
+    showOk('Database connected'+(d.orgs.length>1?' — using organization "'+d.orgs[0].name+'"':'')+'. We\'ll create your database automatically.');
     return true;
   }catch(e){showErr(e.message);return false;}
   finally{btn.disabled=false;}
@@ -208,8 +208,8 @@ function validConfig(){
   return true;
 }
 const PROG_STEPS=[
-  {t:'Creating your Supabase database', s:'Free tier project in EU West'},
-  {t:'Waiting for the database to be ready', s:'Supabase is provisioning Postgres — usually 1–2 minutes'},
+  {t:'Creating your database', s:'Free tier, set up automatically'},
+  {t:'Waiting for the database to be ready', s:'Provisioning — usually 1–2 minutes'},
   {t:'Creating tables & reading API keys', s:'panel_users + panel_settings'},
   {t:'Deploying your panel to Wasmer Edge', s:'Publishing the app and saving secrets'},
 ];
@@ -227,7 +227,7 @@ const sleep = ms => new Promise(r=>setTimeout(r,ms));
 async function doDeploy(){
   cur=3;renderSteps();
   try{
-    // 1. create supabase project
+    // 1. create database project
     renderProg(0);
     const c = await api('/api/deploy/sb-create',{supabase_token:D.sbToken, org_slug:D.orgSlug, project_name:D.app+'-db'});
     const ref = c.ref;

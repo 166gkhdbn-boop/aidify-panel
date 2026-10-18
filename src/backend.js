@@ -242,7 +242,7 @@ async function handler(req) {
       if (!Array.isArray(orgs) || !orgs.length) return err("No organizations found on this Supabase account", 401);
       return json({ ok: true, orgs: orgs.map((o) => ({ slug: o.slug || o.id, name: o.name })) });
     } catch (e) {
-      if (e.status === 401 || e.status === 403) return err("Invalid Supabase token — create one at supabase.com/dashboard/account/tokens", 401);
+      if (e.status === 401 || e.status === 403) return err("Invalid database token — create one at supabase.com/dashboard/account/tokens", 401);
       return err("Supabase error: " + e.message, e.status || 500);
     }
   }
@@ -265,7 +265,7 @@ async function handler(req) {
       if (!ref) return err("Supabase did not return a project ref");
       return json({ ok: true, ref });
     } catch (e) {
-      return err("Could not create Supabase project: " + e.message, e.status || 500);
+      return err("Could not create database: " + e.message, e.status || 500);
     }
   }
 
