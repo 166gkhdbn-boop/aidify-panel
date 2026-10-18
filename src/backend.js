@@ -206,32 +206,112 @@ async function handler(req) {
     }
   }
 
-  if (path === "/api/deploy/verify-db" && m === "POST") {
+  // ---- Supabase Management API (for the self-service deploy wizard) ----
+  // With the user's Supabase PAT we create their project, tables and keys automatically.
+  const SB_MGMT = process.env.SUPABASE_MGMT_URL || "https://api.supabase.com";
+  async function sbMgmt(token, method, path, body) {
+    const r = await fetch(SB_MGMT + path, {
+      method,
+      headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = (j && (j.msg || j.message || j.error_description || j.error)) || ("HTTP " + r.status);
+      const e = new Error(String(msg).slice(0, 200));
+      e.status = r.status;
+      throw e;
+    }
+    return j;
+  }
+  function randomPassword(n) {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+    const buf = new Uint8Array(n || 24);
+    crypto.getRandomValues(buf);
+    return Array.from(buf, (b) => chars[b % chars.length]).join("");
+  }
+  const SETUP_SQL = "create table if not exists panel_users (id uuid primary key default gen_random_uuid(), name text not null, uuid text not null, trojan_password text, enabled boolean not null default true, created_at timestamptz not null default now(), last_seen timestamptz, total_up bigint not null default 0, total_down bigint not null default 0, data_limit bigint, expires_at timestamptz); create table if not exists panel_settings (key text primary key, value text);";
+
+  if (path === "/api/deploy/validate-sb-token" && m === "POST") {
     let body = {};
     try { body = await req.json(); } catch {}
-    const url = String(body.supabase_url || "").trim().replace(/\/$/, "");
-    const key = String(body.supabase_key || "").trim();
-    if (!url || !key) return err("Supabase URL and key are required");
+    const token = String(body.supabase_token || "").trim();
+    if (!token) return err("Supabase token is required");
     try {
-      const h = { apikey: key, Authorization: "Bearer " + key };
-      const [u, s] = await Promise.all([
-        fetch(url + "/rest/v1/panel_users?select=id&limit=1", { headers: h }).then((r) => r.status),
-        fetch(url + "/rest/v1/panel_settings?select=key&limit=1", { headers: h }).then((r) => r.status),
-      ]);
-      if (u === 401 || s === 401) return err("Supabase key is invalid (401)", 401);
-      return json({ ok: true, users: u === 200, settings: s === 200 });
+      const orgs = await sbMgmt(token, "GET", "/v1/organizations");
+      if (!Array.isArray(orgs) || !orgs.length) return err("No organizations found on this Supabase account", 401);
+      return json({ ok: true, orgs: orgs.map((o) => ({ slug: o.slug || o.id, name: o.name })) });
     } catch (e) {
-      return err("Could not reach Supabase — check the URL");
+      if (e.status === 401 || e.status === 403) return err("Invalid Supabase token — create one at supabase.com/dashboard/account/tokens", 401);
+      return err("Supabase error: " + e.message, e.status || 500);
     }
   }
 
-  if (path === "/api/deploy" && m === "POST") {
+  if (path === "/api/deploy/sb-create" && m === "POST") {
+    let body = {};
+    try { body = await req.json(); } catch {}
+    const token = String(body.supabase_token || "").trim();
+    const orgSlug = String(body.org_slug || "").trim();
+    const name = String(body.project_name || "ren-panel-db").trim().slice(0, 40) || "ren-panel-db";
+    if (!token || !orgSlug) return err("Missing parameters");
+    try {
+      const p = await sbMgmt(token, "POST", "/v1/projects", {
+        name,
+        organization_slug: orgSlug,
+        db_pass: randomPassword(24),
+        region: "eu-west-1",
+      });
+      const ref = p.id || p.ref;
+      if (!ref) return err("Supabase did not return a project ref");
+      return json({ ok: true, ref });
+    } catch (e) {
+      return err("Could not create Supabase project: " + e.message, e.status || 500);
+    }
+  }
+
+  if (path === "/api/deploy/sb-status" && m === "POST") {
+    let body = {};
+    try { body = await req.json(); } catch {}
+    const token = String(body.supabase_token || "").trim();
+    const ref = String(body.ref || "").trim();
+    if (!token || !ref) return err("Missing parameters");
+    try {
+      const p = await sbMgmt(token, "GET", "/v1/projects/" + encodeURIComponent(ref));
+      const status = p.status || "UNKNOWN";
+      return json({ ok: true, status, ready: status === "ACTIVE_HEALTHY" });
+    } catch (e) {
+      return err("Could not check project status: " + e.message, e.status || 500);
+    }
+  }
+
+  if (path === "/api/deploy/sb-setup" && m === "POST") {
+    let body = {};
+    try { body = await req.json(); } catch {}
+    const token = String(body.supabase_token || "").trim();
+    const ref = String(body.ref || "").trim();
+    if (!token || !ref) return err("Missing parameters");
+    try {
+      await sbMgmt(token, "POST", "/v1/projects/" + encodeURIComponent(ref) + "/query", { query: SETUP_SQL });
+      const keys = await sbMgmt(token, "GET", "/v1/projects/" + encodeURIComponent(ref) + "/api-keys");
+      let key = null;
+      if (Array.isArray(keys)) {
+        const k = keys.find((x) => x.name === "service_role") || keys.find((x) => x.name === "secret");
+        key = k && (k.api_key || k.key);
+      }
+      if (!key) return err("Could not read API keys for the new project");
+      return json({ ok: true, supabase_url: "https://" + ref + ".supabase.co", service_role_key: key });
+    } catch (e) {
+      return err("Database setup failed: " + e.message, e.status || 500);
+    }
+  }
+
+  if (path === "/api/deploy/wasmer" && m === "POST") {
     let body = {};
     try { body = await req.json(); } catch {}
     const token = String(body.wasmer_token || "").trim();
     const appName = String(body.app_name || "").trim().toLowerCase();
     const sbUrl = String(body.supabase_url || "").trim().replace(/\/$/, "");
-    const sbKey = String(body.supabase_key || "").trim();
+    const sbKey = String(body.service_role_key || body.supabase_key || "").trim();
     const pw = String(body.panel_password || "");
     const proxyHost = String(body.proxy_host || "").trim().toLowerCase();
     if (!token) return err("Wasmer token is required");
