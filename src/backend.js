@@ -11,12 +11,19 @@ const ENV_PROXY_HOST = process.env.PROXY_HOST || "";
 
 const LOGIN_HTML = __LOGIN_HTML__;
 const DASHBOARD_HTML = __DASHBOARD_HTML__;
+const SETUP_HTML = __SETUP_HTML__;
 
 const json = (obj, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json" } });
 const err = (detail, status = 400) => json({ detail }, status);
 const html = (s, status = 200) =>
   new Response(s, { status, headers: { "content-type": "text/html;charset=utf-8" } });
+// relative redirect (WinterJS req.url drops the port, so absolute redirects break)
+function redir(to) {
+  const h = new Headers();
+  h.set("Location", to);
+  return new Response("", { status: 302, headers: h });
+}
 
 async function sha256hex(str) {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
@@ -76,6 +83,9 @@ async function activePasswordHash() {
 async function makeToken() {
   const h = await activePasswordHash();
   return sha256hex(h + ":ren-edge");
+}
+async function isSetupDone() {
+  return (await getSetting("setup_done")) === "true";
 }
 async function authed(req) {
   const h = req.headers.get("authorization") || "";
@@ -154,9 +164,36 @@ async function handler(req) {
   if (path === "/health") return json({ status: "ok" });
 
   // pages
-  if (path === "/") return Response.redirect(new URL("/dashboard", req.url).toString(), 302);
-  if (path === "/login") return html(LOGIN_HTML);
+  if (path === "/") return redir((await isSetupDone()) ? "/dashboard" : "/setup");
+  if (path === "/login") {
+    if (!(await isSetupDone())) return redir("/setup");
+    return html(LOGIN_HTML);
+  }
+  if (path === "/setup") {
+    if (await isSetupDone()) return redir("/login");
+    return html(SETUP_HTML);
+  }
   if (path === "/dashboard") return html(DASHBOARD_HTML);
+
+  // first-run setup (public until setup is done)
+  if (path === "/api/setup-info" && m === "GET") {
+    const done = await isSetupDone();
+    return json(done ? { setup_done: true } : { setup_done: false, domain: (await getSetting("proxy_host")) || "" });
+  }
+  if (path === "/api/setup" && m === "POST") {
+    if (await isSetupDone()) return err("Setup already completed", 403);
+    let body = {};
+    try { body = await req.json(); } catch {}
+    const pw = String(body.password || "");
+    let domain = String(body.domain || "").trim().toLowerCase()
+      .replace("https://", "").replace("http://", "").replace(/\/$/, "");
+    if (pw.length < 4) return err("Password must be at least 4 characters");
+    if (!domain || !/^[a-z0-9\-_.]+$/.test(domain)) return err("Invalid domain format");
+    await setSetting("admin_password_hash", await sha256hex(pw));
+    await setSetting("proxy_host", domain);
+    await setSetting("setup_done", "true");
+    return json({ ok: true });
+  }
 
   // public subscription
   if (path.startsWith("/sub/") && m === "GET") {

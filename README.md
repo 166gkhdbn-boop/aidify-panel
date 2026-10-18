@@ -4,8 +4,12 @@ VLESS inbound management panel running on **Wasmer Edge** (WinterJS),
 using the REN Gateway reference UI with Supabase as the data store.
 
 - **Login** (`/login`) — password gate, token stored in `localStorage`
+- **Setup wizard** (`/setup`) — first-run: welcome → admin password → proxy
+  domain → done. Shown automatically until `setup_done` is set in
+  `panel_settings`.
 - **Dashboard** (`/dashboard`) — traffic, inbounds, system overview
-- **Inbounds** — create / edit / toggle / reset traffic / delete, per-inbound
+- **Inbounds** — table + creation **wizard** (Name → Data limit → Expiry →
+  Review → link + QR), edit / toggle / reset traffic / delete, per-inbound
   VLESS links + subscription modal
 - **Addresses** — extra CDN endpoints included in subscriptions
 - **Domain** — which host the generated links point to (`proxy_host`)

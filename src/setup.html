@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>REN — Setup</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0c0c0f;--panel:#13131a;--panel2:#18181f;--border:#1c1c28;--border-hi:#2a2a3e;--text:#e2e2f0;--muted:#6b6b8a;--dim:#2e2e42;--accent:#6366f1;--accent-glow:rgba(99,102,241,0.18);--accent-dim:rgba(99,102,241,0.08);--green:#10b981;--green-dim:rgba(16,185,129,0.08);--red:#f43f5e;--red-dim:rgba(244,63,94,0.08)}
+html,body{height:100%;background:var(--bg);font-family:'Inter',system-ui,sans-serif;color:var(--text)}
+body{display:flex;align-items:center;justify-content:center;min-height:100vh;position:relative;overflow:hidden;padding:20px}
+.bg-grid{position:fixed;inset:0;background-image:linear-gradient(rgba(99,102,241,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none}
+.bg-glow{position:fixed;width:700px;height:700px;background:radial-gradient(circle,rgba(99,102,241,0.07) 0%,transparent 70%);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none}
+.wrap{position:relative;z-index:1;width:100%;max-width:480px}
+.logo{text-align:center;margin-bottom:24px}
+.logo-mark{width:52px;height:52px;background:var(--accent);border-radius:15px;display:inline-flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:#fff;margin-bottom:12px;box-shadow:0 0 44px var(--accent-glow)}
+.logo h1{font-size:22px;font-weight:700;letter-spacing:-.5px}
+.logo p{font-size:13px;color:var(--muted);margin-top:4px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:30px;box-shadow:0 20px 60px rgba(0,0,0,0.4);overflow:hidden}
+/* steps indicator */
+.steps{display:flex;align-items:center;margin-bottom:26px}
+.step-dot{width:28px;height:28px;border-radius:50%;background:var(--panel2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--muted);flex-shrink:0;transition:all .3s}
+.step-dot.done{background:var(--green-dim);border-color:var(--green);color:var(--green)}
+.step-dot.now{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 16px var(--accent-glow)}
+.step-line{flex:1;height:1px;background:var(--border);margin:0 8px;transition:background .3s}
+.step-line.done{background:var(--green)}
+.step{display:none;animation:fadeUp .35s ease}
+.step.on{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.step h2{font-size:17px;font-weight:700;margin-bottom:8px;letter-spacing:-.3px}
+.step .desc{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:20px}
+.feat{display:flex;gap:12px;align-items:flex-start;padding:12px;border:1px solid var(--border);border-radius:12px;margin-bottom:10px;background:var(--panel2)}
+.feat-ico{width:34px;height:34px;border-radius:9px;background:var(--accent-dim);color:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.feat b{font-size:13px;display:block;margin-bottom:2px}
+.feat span{font-size:12px;color:var(--muted)}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.field input{width:100%;padding:11px 14px;background:#0a0a10;border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none;transition:border-color .2s,box-shadow .2s}
+.field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+.field input::placeholder{color:var(--dim)}
+.field .hint{font-size:11px;color:var(--muted);margin-top:6px}
+.err{background:var(--red-dim);border:1px solid rgba(244,63,94,0.2);color:var(--red);border-radius:9px;padding:10px 14px;font-size:13px;margin-bottom:14px;display:none;align-items:center;gap:8px}
+.err.show{display:flex}
+.nav{display:flex;justify-content:space-between;gap:10px;margin-top:24px}
+.btn{font-family:inherit;font-size:13px;font-weight:600;border-radius:10px;padding:11px 22px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;border:none;transition:all .15s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{filter:brightness(1.1);box-shadow:0 4px 18px var(--accent-glow)}
+.btn-primary:disabled{opacity:.5;pointer-events:none}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-ghost:hover{border-color:var(--border-hi);color:var(--text)}
+.done-ico{width:64px;height:64px;border-radius:50%;background:var(--green-dim);border:1px solid var(--green);color:var(--green);display:flex;align-items:center;justify-content:center;margin:6px auto 18px;animation:pop .5s cubic-bezier(.34,1.4,.64,1)}
+@keyframes pop{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}
+.center{text-align:center}
+.summary{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:6px}
+.summary .row{display:flex;justify-content:space-between;font-size:13px;padding:7px 0;border-bottom:1px solid var(--border)}
+.summary .row:last-child{border-bottom:none}
+.summary .k{color:var(--muted)}
+.summary .v{font-weight:600}
+.spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:none}
+.btn.loading .spinner{display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+<div class="wrap">
+  <div class="logo">
+    <div class="logo-mark">R</div>
+    <h1>REN Gateway</h1>
+    <p>First-time setup</p>
+  </div>
+  <div class="card">
+    <div class="steps" id="steps"></div>
+    <div class="err" id="err"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span id="err-msg"></span></div>
+
+    <div class="step on" data-step="0">
+      <h2>Welcome to REN</h2>
+      <p class="desc">Your VLESS gateway panel is almost ready. This short wizard will set your admin password and proxy domain.</p>
+      <div class="feat"><div class="feat-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div><div><b>Secure by default</b><span>Token-based auth, no cookies, no tracking.</span></div></div>
+      <div class="feat"><div class="feat-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div><div><b>Manage inbounds</b><span>Create links with data limits, expiry and traffic stats.</span></div></div>
+      <div class="feat"><div class="feat-ico"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div><div><b>Subscriptions</b><span>Per-inbound subscription URLs for v2rayNG and friends.</span></div></div>
+    </div>
+
+    <div class="step" data-step="1">
+      <h2>Admin password</h2>
+      <p class="desc">Choose the password you'll use to sign in to this panel.</p>
+      <div class="field"><label>Password</label><input type="password" id="pw" placeholder="••••••••" autocomplete="new-password"><div class="hint">At least 4 characters.</div></div>
+      <div class="field"><label>Confirm password</label><input type="password" id="pw2" placeholder="••••••••" autocomplete="new-password"></div>
+    </div>
+
+    <div class="step" data-step="2">
+      <h2>Proxy domain</h2>
+      <p class="desc">The public host your VLESS links will point to. You can change it later in <b>Domain</b>.</p>
+      <div class="field"><label>Domain</label><input type="text" id="domain" placeholder="example.com" dir="ltr"><div class="hint">Your <b>proxy</b> host (where VLESS clients connect) — without https://</div></div>
+    </div>
+
+    <div class="step" data-step="3">
+      <div class="center">
+        <div class="done-ico"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <h2>You're all set</h2>
+        <p class="desc">Your gateway is configured. Sign in to open the dashboard.</p>
+      </div>
+      <div class="summary">
+        <div class="row"><span class="k">Admin user</span><span class="v">admin</span></div>
+        <div class="row"><span class="k">Proxy domain</span><span class="v" id="sum-domain" dir="ltr">—</span></div>
+      </div>
+    </div>
+
+    <div class="nav">
+      <button class="btn btn-ghost" id="btn-back" onclick="go(-1)" style="visibility:hidden">← Back</button>
+      <button class="btn btn-primary" id="btn-next" onclick="go(1)"><span class="spinner" id="spin"></span><span id="next-txt">Continue →</span></button>
+    </div>
+  </div>
+</div>
+<script>
+let cur = 0;
+const N = 4;
+const labels = ['Welcome','Password','Domain','Done'];
+function renderSteps(){
+  const w = document.getElementById('steps');
+  let h = '';
+  for(let i=0;i<N;i++){
+    const cls = i<cur?'done':(i===cur?'now':'');
+    const inner = i<cur
+      ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>'
+      : (i+1);
+    h += `<div class="step-dot ${cls}">${inner}</div>`;
+    if(i<N-1) h += `<div class="step-line ${i<cur?'done':''}"></div>`;
+  }
+  w.innerHTML = h;
+  document.querySelectorAll('.step').forEach(s=>s.classList.toggle('on',+s.dataset.step===cur));
+  document.getElementById('btn-back').style.visibility = cur===0||cur===N-1 ? 'hidden':'visible';
+  document.getElementById('next-txt').textContent = cur===1?'Set password →':cur===2?'Finish setup':cur===N-1?'Open dashboard':'Continue →';
+  hideErr();
+}
+function showErr(m){document.getElementById('err-msg').textContent=m;document.getElementById('err').classList.add('show');}
+function hideErr(){document.getElementById('err').classList.remove('show');}
+function validStep(){
+  if(cur===1){
+    const a=document.getElementById('pw').value, b=document.getElementById('pw2').value;
+    if(a.length<4){showErr('Password must be at least 4 characters.');return false;}
+    if(a!==b){showErr('Passwords do not match.');return false;}
+  }
+  if(cur===2){
+    const d=document.getElementById('domain').value.trim().toLowerCase().replace(/^https?:\/\//,'').replace(/\/$/,'');
+    if(!d){showErr('Domain is required.');return false;}
+    if(!/^[a-z0-9\-_.]+$/.test(d)){showErr('Invalid domain format.');return false;}
+    document.getElementById('domain').value=d;
+  }
+  return true;
+}
+async function finish(){
+  const btn=document.getElementById('btn-next');
+  btn.classList.add('loading');btn.disabled=true;hideErr();
+  try{
+    const r=await fetch('/api/setup',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({password:document.getElementById('pw').value,domain:document.getElementById('domain').value.trim()})});
+    const d=await r.json();
+    if(!r.ok){showErr(d.detail||'Setup failed');btn.classList.remove('loading');btn.disabled=false;cur=1;renderSteps();return;}
+    document.getElementById('sum-domain').textContent=document.getElementById('domain').value.trim();
+    cur=3;renderSteps();
+  }catch(e){showErr('Connection error.');}
+  btn.classList.remove('loading');btn.disabled=false;
+}
+function go(d){
+  if(d>0){
+    if(!validStep())return;
+    if(cur===2){finish();return;}
+    if(cur===N-1){window.location.href='/login';return;}
+  }
+  cur=Math.min(N-1,Math.max(0,cur+d));
+  renderSteps();
+}
+document.getElementById('pw2').addEventListener('keydown',e=>{if(e.key==='Enter')go(1);});
+document.getElementById('domain').addEventListener('keydown',e=>{if(e.key==='Enter')go(1);});
+// prefill domain: existing proxy_host if set, else current hostname (no port)
+try{
+  fetch('/api/setup-info').then(r=>r.json()).then(d=>{
+    if(d && d.domain) document.getElementById('domain').value=d.domain;
+    else document.getElementById('domain').value=window.location.hostname;
+  }).catch(()=>{document.getElementById('domain').value=window.location.hostname;});
+}catch(e){}
+renderSteps();
+</script>
+</body>
+</html>

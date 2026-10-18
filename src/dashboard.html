@@ -215,6 +215,27 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--
 /* Responsive */
 @media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.sidebar{width:200px}}
 @media(max-width:640px){.sidebar{display:none}.content{padding:14px}.stats{grid-template-columns:1fr 1fr}}
+
+/* ---- Inbound wizard ---- */
+.wz-steps{display:flex;align-items:center;margin-bottom:22px}
+.wz-dot{width:26px;height:26px;border-radius:50%;background:var(--panel2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--muted);flex-shrink:0;transition:all .3s}
+.wz-dot.done{background:var(--green-dim);border-color:var(--green);color:var(--green)}
+.wz-dot.now{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 14px var(--accent-glow)}
+.wz-line{flex:1;height:1px;background:var(--border);margin:0 6px}
+.wz-line.done{background:var(--green)}
+.wz-lbl{font-size:10px;color:var(--muted);text-align:center;margin-top:5px;font-weight:600}
+.wz-lbl.now{color:var(--accent)}
+.wz-col{display:flex;flex-direction:column;align-items:center;flex-shrink:0;width:52px}
+.wz-step{display:none;animation:fadeUp .3s ease}
+.wz-step.on{display:block}
+.wz-step h3{font-size:14px;font-weight:700;margin-bottom:6px}
+.wz-step .desc{font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6}
+.wz-err{background:var(--red-dim);border:1px solid rgba(244,63,94,.2);color:var(--red);border-radius:9px;padding:9px 13px;font-size:12px;margin-bottom:14px;display:none}
+.wz-err.show{display:block}
+.unlim{display:flex;align-items:center;gap:9px;padding:11px 13px;border:1px solid var(--border);border-radius:10px;cursor:pointer;margin-bottom:12px;transition:border-color .15s;font-size:13px;font-weight:500}
+.unlim:hover{border-color:var(--border-hi)}
+.unlim input{width:16px;height:16px;accent-color:var(--accent)}
+.wz-done-ico{width:58px;height:58px;border-radius:50%;background:var(--green-dim);border:1px solid var(--green);color:var(--green);display:flex;align-items:center;justify-content:center;margin:4px auto 16px;animation:modalIn .4s cubic-bezier(.34,1.3,.64,1)}
 </style>
 </head>
 <body>
@@ -351,7 +372,7 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--
           <svg class="search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input class="search-inp" id="inbound-search" placeholder="Search inbounds…" oninput="filterInbounds()">
         </div>
-        <button class="btn btn-primary" onclick="openAddModal()">
+        <button class="btn btn-primary" onclick="openWizard()">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           New Inbound
         </button>
@@ -943,10 +964,167 @@ async function doLogout(){
   window.location.href='/login';
 }
 
+
+// ---- Inbound creation wizard ----
+const WZ_LABELS = ['Name','Data','Expiry','Review'];
+let wz = null;
+function openWizard(){
+  wz = {step:0, created:null};
+  document.getElementById('wz-label').value='';
+  document.getElementById('wz-unlim').checked=true;
+  document.getElementById('wz-limit-row').style.opacity=.4;
+  document.getElementById('wz-limit-val').value='';
+  document.getElementById('wz-limit-unit').value='GB';
+  document.getElementById('wz-expiry').value='';
+  document.getElementById('wz-maxconn').value='';
+  document.getElementById('wizard-modal').classList.add('show');
+  renderWz();
+}
+function wzErr(m){const e=document.getElementById('wz-err');if(!m){e.classList.remove('show');return;}e.textContent=m;e.classList.add('show');}
+function renderWz(){
+  const steps=document.getElementById('wz-steps');
+  let h='';
+  for(let i=0;i<4;i++){
+    const cls=i<wz.step?'done':(i===wz.step?'now':'');
+    const inner=i<wz.step?'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>':(i+1);
+    h+=`<div class="wz-col"><div class="wz-dot ${cls}">${inner}</div><div class="wz-lbl ${i===wz.step?'now':''}">${WZ_LABELS[i]}</div></div>`;
+    if(i<3)h+=`<div class="wz-line ${i<wz.step?'done':''}" style="margin-bottom:22px"></div>`;
+  }
+  steps.innerHTML=h;
+  document.querySelectorAll('.wz-step').forEach(el=>el.classList.toggle('on',+el.dataset.wz===wz.step));
+  wzErr(null);
+  const back=document.getElementById('wz-back'), next=document.getElementById('wz-next'), foot=document.getElementById('wz-footer');
+  if(wz.step===4){foot.style.display='none';return;}
+  foot.style.display='flex';
+  back.style.visibility=wz.step===0?'hidden':'visible';
+  next.innerHTML=wz.step===3?'Create inbound':'Continue →';
+  if(wz.step===3)renderWzReview();
+}
+function renderWzReview(){
+  const unlim=document.getElementById('wz-unlim').checked;
+  const lv=parseFloat(document.getElementById('wz-limit-val').value)||0;
+  const lu=document.getElementById('wz-limit-unit').value;
+  const exp=parseFloat(document.getElementById('wz-expiry').value)||0;
+  const mc=parseInt(document.getElementById('wz-maxconn').value)||0;
+  const row=(k,v)=>`<div style="display:flex;justify-content:space-between;font-size:13px;padding:8px 0;border-bottom:1px solid var(--border)"><span style="color:var(--muted)">${k}</span><b>${esc(v)}</b></div>`;
+  document.getElementById('wz-review').innerHTML =
+    row('Name',document.getElementById('wz-label').value.trim())+
+    row('Data limit',unlim?'Unlimited':(lv>0?lv+' '+lu:'Unlimited'))+
+    row('Expiry',exp>0?exp+' days':'Never')+
+    row('Max connections',mc>0?String(mc):'Unlimited');
+}
+function wzValid(){
+  if(wz.step===0){
+    const l=document.getElementById('wz-label').value.trim();
+    if(!l){wzErr('Name is required.');return false;}
+    if(!/^[a-zA-Z0-9\-_. ]+$/.test(l)){wzErr('Only English letters, numbers and - _ . space.');return false;}
+    if(allLinks.some(x=>x.label===l)){wzErr('An inbound with this name already exists.');return false;}
+  }
+  return true;
+}
+function wzGo(d){
+  if(d>0){
+    if(!wzValid())return;
+    if(wz.step===3){wzCreate();return;}
+  }else{
+    if(wz.step===0)return;
+  }
+  wz.step=Math.min(3,Math.max(0,wz.step+d));
+  renderWz();
+}
+async function wzCreate(){
+  const next=document.getElementById('wz-next');
+  next.disabled=true;next.textContent='Creating…';wzErr(null);
+  const unlim=document.getElementById('wz-unlim').checked;
+  const lv=parseFloat(document.getElementById('wz-limit-val').value)||0;
+  const lu=document.getElementById('wz-limit-unit').value;
+  const exp=parseFloat(document.getElementById('wz-expiry').value)||0;
+  const mc=parseInt(document.getElementById('wz-maxconn').value)||0;
+  try{
+    const r=await fetch('/api/links',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({label:document.getElementById('wz-label').value.trim(),limit_value:unlim?0:lv,limit_unit:lu,max_connections:mc,expiry_days:exp})});
+    const d=await r.json();
+    if(!r.ok){wzErr(d.detail||'Error');next.disabled=false;next.textContent='Create inbound';return;}
+    wz.created=d;
+    document.getElementById('wz-link').textContent=d.vless_link;
+    document.getElementById('wz-suburl').textContent='https://'+window.location.host+'/sub/'+d.uuid;
+    document.getElementById('wz-qr').src=`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(d.vless_link)}&bgcolor=13131a&color=6366f1&margin=10`;
+    wz.step=4;renderWz();
+    loadInbounds();
+  }catch(e){wzErr('Network error');}
+  next.disabled=false;next.textContent='Create inbound';
+}
+function wzDone(){closeModal('wizard-modal');goPage('inbounds');}
+
 // Init
 initChart();
 loadStats();
 setInterval(loadStats,5000);
 </script>
+
+<!-- Inbound creation wizard -->
+<div class="overlay" id="wizard-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-title">New Inbound</div>
+    <button class="modal-close" onclick="closeModal('wizard-modal')">✕</button>
+    <div class="wz-steps" id="wz-steps"></div>
+    <div class="wz-err" id="wz-err"></div>
+
+    <div class="wz-step" data-wz="0">
+      <h3>Name your inbound</h3>
+      <p class="desc">A short English name — it will appear in the link remark.</p>
+      <div class="form-group"><label class="form-label">Inbound name</label>
+      <input class="form-input" id="wz-label" placeholder="e.g. phone-main" dir="ltr" maxlength="60"></div>
+    </div>
+
+    <div class="wz-step" data-wz="1">
+      <h3>Data limit</h3>
+      <p class="desc">How much traffic can this inbound use?</p>
+      <label class="unlim"><input type="checkbox" id="wz-unlim" checked onchange="document.getElementById('wz-limit-row').style.opacity=this.checked?0.4:1"> Unlimited traffic</label>
+      <div class="form-row" id="wz-limit-row" style="opacity:.4">
+        <div class="form-group"><label class="form-label">Amount</label><input class="form-input" id="wz-limit-val" type="number" min="0" placeholder="10" dir="ltr"></div>
+        <div class="form-group"><label class="form-label">Unit</label><select class="form-select" id="wz-limit-unit"><option>MB</option><option selected>GB</option><option>TB</option></select></div>
+      </div>
+    </div>
+
+    <div class="wz-step" data-wz="2">
+      <h3>Expiry &amp; connections</h3>
+      <p class="desc">Optional limits. Leave empty for no expiry / unlimited connections.</p>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Expires in (days)</label><input class="form-input" id="wz-expiry" type="number" min="0" placeholder="Never" dir="ltr"></div>
+        <div class="form-group"><label class="form-label">Max connections</label><input class="form-input" id="wz-maxconn" type="number" min="0" placeholder="Unlimited" dir="ltr"></div>
+      </div>
+    </div>
+
+    <div class="wz-step" data-wz="3">
+      <h3>Review</h3>
+      <p class="desc">Check everything before creating.</p>
+      <div class="summary" id="wz-review" style="background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:6px 16px;margin-bottom:6px"></div>
+    </div>
+
+    <div class="wz-step" data-wz="4">
+      <div style="text-align:center">
+        <div class="wz-done-ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <h3>Inbound created</h3>
+        <p class="desc">Share the link or QR with the user.</p>
+      </div>
+      <div class="form-group"><label class="form-label">VLESS link</label>
+        <div class="code-block" id="wz-link" style="padding-right:44px"></div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-primary btn-sm" onclick="copyEl('wz-link')">Copy link</button>
+          <button class="btn btn-ghost btn-sm" onclick="copyEl('wz-suburl')">Copy subscription URL</button>
+        </div>
+      </div>
+      <div class="form-group" style="display:none"><span id="wz-suburl"></span></div>
+      <div class="qr-box"><img id="wz-qr" alt="QR" style="max-width:180px"></div>
+      <div style="text-align:center;margin-top:16px"><button class="btn btn-primary" onclick="wzDone()">Done</button></div>
+    </div>
+
+    <div class="modal-footer" id="wz-footer">
+      <button class="btn btn-ghost" id="wz-back" onclick="wzGo(-1)">← Back</button>
+      <button class="btn btn-primary" id="wz-next" onclick="wzGo(1)">Continue →</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
