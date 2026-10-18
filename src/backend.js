@@ -239,7 +239,7 @@ async function handler(req) {
     if (!token) return err("Supabase token is required");
     try {
       const orgs = await sbMgmt(token, "GET", "/v1/organizations");
-      if (!Array.isArray(orgs) || !orgs.length) return err("No organizations found on this Supabase account", 401);
+      if (!Array.isArray(orgs) || !orgs.length) return err("No organizations found — your token needs full permissions. Create a new token with all scopes enabled.", 401);
       return json({ ok: true, orgs: orgs.map((o) => ({ slug: o.slug || o.id, name: o.name })) });
     } catch (e) {
       if (e.status === 401 || e.status === 403) return err("Invalid database token — create one at supabase.com/dashboard/account/tokens", 401);

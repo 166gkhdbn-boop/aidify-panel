@@ -1523,7 +1523,7 @@ body{display:flex;align-items:center;justify-content:center;min-height:100vh;pos
         <ol>
           <li>Sign in at <a href="https://supabase.com" target="_blank" rel="noopener">supabase.com</a></li>
           <li>Go to <a href="https://supabase.com/dashboard/account/tokens" target="_blank" rel="noopener">Account → Access Tokens</a></li>
-          <li>Create a token and paste it here</li>
+          <li>Create a token with <b>full permissions</b> (it needs to create projects for you) and paste it here</li>
         </ol>
       </p>
       <div class="secure"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:1px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>Used once to create your database. Never stored.</span></div>
@@ -1927,7 +1927,7 @@ async function handler(req) {
     if (!token) return err("Supabase token is required");
     try {
       const orgs = await sbMgmt(token, "GET", "/v1/organizations");
-      if (!Array.isArray(orgs) || !orgs.length) return err("No organizations found on this Supabase account", 401);
+      if (!Array.isArray(orgs) || !orgs.length) return err("No organizations found — your token needs full permissions. Create a new token with all scopes enabled.", 401);
       return json({ ok: true, orgs: orgs.map((o) => ({ slug: o.slug || o.id, name: o.name })) });
     } catch (e) {
       if (e.status === 401 || e.status === 403) return err("Invalid database token — create one at supabase.com/dashboard/account/tokens", 401);
